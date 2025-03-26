@@ -5,12 +5,15 @@
         intensity:{
             max:1000,
             default_value:100,
-            step:1
+            step:1,
+            current_value:100
         },
         gain:{
             max:100,
             step:1,
-            default_value:20
+            default_value:20,
+            current_value:20
+
         }
       },
       buttons:{
@@ -27,17 +30,20 @@
         wet:{
             max:1,
             default_value:0.5,
+            current_value:0.5,
             step:0.01
         },
 
         speed:{
             max:10,
             default_value:1,
+            current_value:1,
             step:1
         },
         duration:{
             max:1,
             default_value:0.4,
+            current_value:0.4,
             step:0.01
         },
     
@@ -51,12 +57,16 @@
         wet:{
             max:1,
             default_value:0.5,
+            current_value:0.5,
+
             step:0.01
         },
 
     level:{
         max:1,
         default_value:1,
+        current_value:1,
+
         step:0.01
     }},
       color: '#66cc66',  
@@ -67,6 +77,8 @@
         speed:{
             max:10,
             default_value:1,
+            current_value:1,
+
             step:1
         }},
       color: '#9933cc', 

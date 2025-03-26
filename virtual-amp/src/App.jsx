@@ -9,15 +9,18 @@ import { Volume, Distortion, Delay, Reverb, Input, Output } from "audio-effects"
 function App() {
   const [effectBoxes, setEffectBoxes] = useState([]);
   const [volume, setVolume] = useState(0.5);
+  const [userInteracted, setUserInteracted] = useState(false);
 
-  const [powerButton, setPowerButton] = useState(true);
+  const [powerButton, setPowerButton] = useState(false);
   const [effectBoxesShelf, setEffectBoxesShelf] = useState(
     pedalsConfig
   );
+  //audio context refs
   const context = useRef(new AudioContext());
   const volumeRef = useRef(new Volume(context.current));
   const reverbRef = useRef(new Reverb(context.current));
-  const inputRef = useRef(new Input(context.current));
+  const inputRef = useRef(null);
+  const outputRef = useRef(null);
 const handleKnobChange = (effectName, knobName, newValue) => {
   const floatValue = parseFloat(newValue);
   setEffectBoxes((prevEffectBoxes) =>
@@ -29,7 +32,7 @@ const handleKnobChange = (effectName, knobName, newValue) => {
               ...effect.knobs,
               [knobName]: {
                 ...effect.knobs[knobName],
-                default_value: floatValue, 
+                current_value: floatValue, 
               },
             },
           }
@@ -39,43 +42,55 @@ const handleKnobChange = (effectName, knobName, newValue) => {
 };
   const getContext = () => context.current;
 
+ 
   useEffect(() => {
-    setupContext();
-  }, []);
+    // Wait for user interaction to start the audio context
+    if (userInteracted) {
+      setupContext();
+    }
+  }, [userInteracted]); // only trigger setupContext when user interacts
+  console.log(effectsChain.current)
+  const handleUserInteraction = () => {
+    // This function triggers when the user clicks a button or interacts with the page
+    if (context.current.state === "suspended") {
+      context.current.resume();
+    }
+    setUserInteracted(true);
+  };
 
   async function setupContext() {
     const ctx = getContext();
-
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
+    inputRef.current = new Input(ctx);
+    outputRef.current = new Output(ctx);
+    try {
+      await inputRef.current.getUserMedia();
+      volumeRef.current.level = volume;
+      inputRef.current.connect(volumeRef.current).connect(outputRef.current);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
     }
-    const inputStream = await getGuitar();
-
-    const input = inputRef.current;
-    input.input = inputStream;
-    const output = new Output(ctx);
-
-    const gain = volumeRef.current;
-    gain.level = 0.5;
-
-    const reverb = new Reverb(ctx);
-    reverb.wet = 0.5;
-    reverb.level = 1;
-
-
-    input.connect(gain).connect(reverb).connect(output);
   }
 
-  function getGuitar() {
-    return navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        autoGainControl: false,
-        autoSuppression: false,
-        latency: 0,
-      },
+  const updateAudioChain = () => {
+    Object.keys(effectBoxes).forEach((effect) => effect.current.disconnect());
+    let lastNode = inputRef.current;
+  
+    // Loop through effectBoxes and connect them to the audio chain
+    effectBoxes.forEach((effect) => {
+      const effectInstance = effectsChain.current[effect.name];
+  
+      // Check if the effect is enabled/active
+      if (effectInstance) {
+        lastNode.connect(effectInstance);
+        console.log(lastNode)
+        lastNode = effectInstance;
+      }
     });
-  }
+  
+    lastNode.connect(volumeRef.current);
+    volumeRef.current.connect(outputRef.current);
+  };
+  
 
   const handleVolumeSlider = (e) => {
     const newVolume = parseFloat(e.target.value);
@@ -86,10 +101,11 @@ const handleKnobChange = (effectName, knobName, newValue) => {
   };
   const handleOnOffButton = () => {
     if (powerButton) {
-      volumeRef.current.level = 0;
+      volumeRef.current.mute=true;
       setPowerButton(false);
     } else {
-      volumeRef.current.level = volume;
+      volumeRef.current.mute=false;
+      handleUserInteraction();
       setPowerButton(true);
     }
   };
@@ -101,16 +117,34 @@ const handleKnobChange = (effectName, knobName, newValue) => {
         prevEffectBoxesShelf.filter((box) => box !== effectBox)
       );
     }
+    effectsChain.current.effectBox.name = effectBox.name+"ref"
+    updateAudioChain();
   };
 
   const handleEffectBoxDelete = (effectBox) => {
-    setEffectBoxes((prevEffectBoxes) =>
-      prevEffectBoxes.filter((box) => box !== effectBox)
+    delete effectsChain.current[effectBox.name];
+
+    const resetEffectBox = {
+      ...effectBox,
+      knobs: Object.fromEntries(
+        Object.entries(effectBox.knobs).map(([knobName, knobConfig]) => [
+          knobName,
+          {
+            ...knobConfig,
+            current_value: knobConfig.default_value
+          }
+        ])
+      )
+    };
+  
+    setEffectBoxes(prevEffectBoxes => 
+      prevEffectBoxes.filter(box => box.name !== effectBox.name)
     );
-    setEffectBoxesShelf((prevEffectBoxesShelf) => [
+    setEffectBoxesShelf(prevEffectBoxesShelf => [
       ...prevEffectBoxesShelf,
-      effectBox,
+      resetEffectBox  
     ]);
+    
   };
 
   return (
@@ -118,7 +152,7 @@ const handleKnobChange = (effectName, knobName, newValue) => {
       <div className="flex h-full">
         <div className="flex-1">
           <h1>Effect Boxes</h1>
-          <div>
+          <div className="">
             {effectBoxesShelf.map((effectBox) => (
               <StoredEffectBox
                 key={effectBox.name}
@@ -132,7 +166,7 @@ const handleKnobChange = (effectName, knobName, newValue) => {
 
         <div className="flex-30/100">
           <h1>Effects Rack</h1>
-          <div className="grid grid-cols-1 grid-rows-5 h-full">
+          <div className="grid bg-gray-300 border grid-cols-1 grid-rows-5 h-full">
             <div className="bg-yellow-800 items-center">
               <h2 className="font-bold text-lg">Amp</h2>
               <div className="flex items-center mt-6 gap-5">
@@ -163,6 +197,7 @@ const handleKnobChange = (effectName, knobName, newValue) => {
                   X
                 </p>
                 <EffectBox
+                
                   name={effectBox.name}
                   colour={effectBox.color}
                   style={{ backgroundColor: effectBox.colour }}

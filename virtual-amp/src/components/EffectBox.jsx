@@ -19,7 +19,7 @@ export default function EffectBox({ name, colour, handleKnobChange, knobs }) {
                 min="0"
                 max={knob.max}
                 step={knob.step}
-                value={knob.default_value}
+                value={knob.current_value}
                 onChange={(e) => handleKnobInputChange(knobKey, e)}
               />
             </div>
@@ -28,7 +28,7 @@ export default function EffectBox({ name, colour, handleKnobChange, knobs }) {
       : null;
   
     return (
-      <div className="h-1/1 rounded-md" style={{ backgroundColor: colour }}>
+      <div className="h-1/1 rounded-md border-2 border-gray-500 " style={{ backgroundColor: colour }}>
         <span className="font-bold text-lg">{name}</span>
         {knobElements}
       </div>
