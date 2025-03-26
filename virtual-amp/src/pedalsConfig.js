@@ -1,49 +1,77 @@
  const pedalsConfig = [
     {
       name: 'Distortion',
-      controls: {
-        Gain: 50,
-        Tone: 30,
-        Level: 70,
+      knobs: {
+        intensity:{
+            max:1000,
+            default_value:100,
+            step:1
+        },
+        gain:{
+            max:100,
+            step:1,
+            default_value:20
+        }
+      },
+      buttons:{
+        low_pass_filter:{
+            name:"Low Pass Filter",
+        }
       },
       color: '#ff5733', 
+      active:'false'
     },
     {
       name: 'Delay',
-      controls: {
-        Time: 50,
-        Feedback: 60,
-        Mix: 40,
-      },
+      knobs: {
+        wet:{
+            max:1,
+            default_value:0.5,
+            step:0.01
+        },
+
+        speed:{
+            max:10,
+            default_value:1,
+            step:1
+        },
+        duration:{
+            max:1,
+            default_value:0.4,
+            step:0.01
+        },
+    
+    
+    },
       color: '#33aaff', 
     },
     {
       name: 'Reverb',
-      controls: {
-        Decay: 70,
-        Tone: 30,
-        Mix: 50,
-      },
+      knobs: {
+        wet:{
+            max:1,
+            default_value:0.5,
+            step:0.01
+        },
+
+    level:{
+        max:1,
+        default_value:1,
+        step:0.01
+    }},
       color: '#66cc66',  
     },
     {
-      name: 'Chorus',
-      controls: {
-        Rate: 40,
-        Depth: 60,
-        Mix: 50,
-      },
+      name: 'Tremolo',
+      knobs: {
+        speed:{
+            max:10,
+            default_value:1,
+            step:1
+        }},
       color: '#9933cc', 
     },
-    {
-      name: 'Overdrive',
-      controls: {
-        Gain: 60,
-        Tone: 40,
-        Level: 80,
-      },
-      color: '#ffcc00',  
-    },
+
   ];
   export default pedalsConfig;
   

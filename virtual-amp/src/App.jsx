@@ -3,6 +3,8 @@ import "./App.css";
 import EffectBox from "./components/EffectBox.jsx";
 import StoredEffectBox from "./components/StoredEffectBox.jsx";
 import pedalsConfig  from "./pedalsConfig.js";
+import { HasAudioContext } from 'audio-effects';
+import { Volume, Distortion, Delay, Reverb, Input, Output } from "audio-effects";
 
 function App() {
   const [effectBoxes, setEffectBoxes] = useState([]);
@@ -13,25 +15,37 @@ function App() {
   );
 
   const context = useRef(new AudioContext());
-  const gainNode = useRef(context.current.createGain());
+  const volumeRef = useRef(new Volume(context.current));
+  const reverbRef = useRef(new Reverb(context.current));
+  const inputRef = useRef(new Input(context.current));
 
   const getContext = () => context.current;
-  const getGainNode = () => gainNode.current;
 
   useEffect(() => {
     setupContext();
   }, []);
 
   async function setupContext() {
-    const guitar = await getGuitar();
     const ctx = getContext();
-    if (ctx.state === "suspended") {
+
+    if (ctx.state === 'suspended') {
       await ctx.resume();
     }
-    const source = ctx.createMediaStreamSource(guitar);
-    source.connect(getGainNode());
-    getGainNode().connect(ctx.destination);
-    getGainNode().gain.value = 0.5;
+    const inputStream = await getGuitar();
+
+    const input = inputRef.current;
+    input.input = inputStream;
+    const output = new Output(ctx);
+
+    const gain = volumeRef.current;
+    gain.level = 0.5;
+
+    const reverb = new Reverb(ctx);
+    reverb.wet = 0.5;
+    reverb.level = 1;
+
+
+    input.connect(gain).connect(reverb).connect(output);
   }
 
   function getGuitar() {
@@ -48,24 +62,18 @@ function App() {
   const handleVolumeSlider = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if(powerButton==true){
-      getGainNode().gain.value = newVolume;
+    if(powerButton == true) {
+      volumeRef.current.level = newVolume;
     }
-
   };
 
   const handleOnOffButton = () => {
-    const gainNode = getGainNode();
-    const context = getContext();
-
-    if (gainNode) {
-      if (powerButton) {
-        gainNode.gain.setValueAtTime(0, context.currentTime);
-        setPowerButton(false);
-      } else {
-        gainNode.gain.setValueAtTime(volume, context.currentTime);
-        setPowerButton(true);
-      }
+    if (powerButton) {
+      volumeRef.current.level = 0;
+      setPowerButton(false);
+    } else {
+      volumeRef.current.level = volume;
+      setPowerButton(true);
     }
   };
 
@@ -109,27 +117,25 @@ function App() {
           <h1>Effects Rack</h1>
           <div className="grid grid-cols-1 grid-rows-5 h-full">
             <div className="bg-yellow-800 items-center">
-            <h2>Amp</h2>
+              <h2>Amp</h2>
               <div className="flex items-center mt-6 gap-5">
-              <button className ="border rounded bg-gray-300 h-10"onClick={handleOnOffButton}>On/Off</button>
+                <button className="border rounded bg-gray-300 h-10" onClick={handleOnOffButton}>On/Off</button>
 
-              <div className="flex gap-2">
-                <div className="bg-white border h-10">
-                  <p>Volume</p>
-                  <input
-                    className="border"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step=".01"
-                    value={volume}
-                    onChange={handleVolumeSlider}
-                  />
+                <div className="flex gap-2">
+                  <div className="bg-white border h-10">
+                    <p>Volume</p>
+                    <input
+                      className="border"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step=".01"
+                      value={volume}
+                      onChange={handleVolumeSlider}
+                    />
+                  </div>
                 </div>
               </div>
-              </div>
-
-
             </div>
             {effectBoxes.map((effectBox) => (
               <div key={effectBox.name} className="relative">
@@ -144,7 +150,6 @@ function App() {
                   colour={effectBox.color}
                   style={{ backgroundColor: effectBox.colour }}
                 >
-                  -
                 </EffectBox>
               </div>
             ))}
