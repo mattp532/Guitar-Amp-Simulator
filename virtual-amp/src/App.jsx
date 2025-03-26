@@ -9,16 +9,34 @@ import { Volume, Distortion, Delay, Reverb, Input, Output } from "audio-effects"
 function App() {
   const [effectBoxes, setEffectBoxes] = useState([]);
   const [volume, setVolume] = useState(0.5);
+
   const [powerButton, setPowerButton] = useState(true);
   const [effectBoxesShelf, setEffectBoxesShelf] = useState(
     pedalsConfig
   );
-
   const context = useRef(new AudioContext());
   const volumeRef = useRef(new Volume(context.current));
   const reverbRef = useRef(new Reverb(context.current));
   const inputRef = useRef(new Input(context.current));
-
+const handleKnobChange = (effectName, knobName, newValue) => {
+  const floatValue = parseFloat(newValue);
+  setEffectBoxes((prevEffectBoxes) =>
+    prevEffectBoxes.map((effect) =>
+      effect.name === effectName
+        ? {
+            ...effect,
+            knobs: {
+              ...effect.knobs,
+              [knobName]: {
+                ...effect.knobs[knobName],
+                default_value: floatValue, 
+              },
+            },
+          }
+        : effect
+    )
+  );
+};
   const getContext = () => context.current;
 
   useEffect(() => {
@@ -66,7 +84,6 @@ function App() {
       volumeRef.current.level = newVolume;
     }
   };
-
   const handleOnOffButton = () => {
     if (powerButton) {
       volumeRef.current.level = 0;
@@ -117,9 +134,9 @@ function App() {
           <h1>Effects Rack</h1>
           <div className="grid grid-cols-1 grid-rows-5 h-full">
             <div className="bg-yellow-800 items-center">
-              <h2>Amp</h2>
+              <h2 className="font-bold text-lg">Amp</h2>
               <div className="flex items-center mt-6 gap-5">
-                <button className="border rounded bg-gray-300 h-10" onClick={handleOnOffButton}>On/Off</button>
+                <button className="border rounded bg-gray-300 h-10 px-3" onClick={handleOnOffButton}>{powerButton?"On":"Off"}</button>
 
                 <div className="flex gap-2">
                   <div className="bg-white border h-10">
@@ -149,6 +166,8 @@ function App() {
                   name={effectBox.name}
                   colour={effectBox.color}
                   style={{ backgroundColor: effectBox.colour }}
+                  handleKnobChange={handleKnobChange}
+                  knobs={effectBox.knobs}
                 >
                 </EffectBox>
               </div>
