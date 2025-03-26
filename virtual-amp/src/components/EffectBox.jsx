@@ -11,10 +11,10 @@ export default function EffectBox({ name, colour, handleKnobChange, knobs }) {
       ? Object.keys(knobs).map(knobKey => {
           const knob = knobs[knobKey];
           return (
-            <div key={knobKey}>
+            <div className="flex items-center"key={knobKey}>
               {knobKey}: 
               <input
-                className="border"
+                className="border ml-2"
                 type="range"
                 min="0"
                 max={knob.max}
@@ -28,9 +28,15 @@ export default function EffectBox({ name, colour, handleKnobChange, knobs }) {
       : null;
   
     return (
-      <div className="h-1/1 rounded-md border-2 border-gray-500 " style={{ backgroundColor: colour }}>
+      <div className="h-1/1 rounded-md border-2 border-black flex " style={{ backgroundColor: colour }}>
+        <div className="flex ml-3 flex-col justify-center">
         <span className="font-bold text-lg">{name}</span>
+        <div className="flex flex-col justify-center">
         {knobElements}
+        </div>
+        </div>
+
+
       </div>
     );
   }

@@ -2,56 +2,61 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import EffectBox from "./components/EffectBox.jsx";
 import StoredEffectBox from "./components/StoredEffectBox.jsx";
-import pedalsConfig  from "./pedalsConfig.js";
-import { HasAudioContext } from 'audio-effects';
-import { Volume, Distortion, Delay, Reverb, Input, Output } from "audio-effects";
+import pedalsConfig from "./pedalsConfig.js";
+import { Volume, Distortion, Delay, Reverb, Input, Output, Tremolo } from "audio-effects";
 
 function App() {
   const [effectBoxes, setEffectBoxes] = useState([]);
   const [volume, setVolume] = useState(0.5);
   const [userInteracted, setUserInteracted] = useState(false);
-
   const [powerButton, setPowerButton] = useState(false);
-  const [effectBoxesShelf, setEffectBoxesShelf] = useState(
-    pedalsConfig
-  );
-  //audio context refs
+  const [effectBoxesShelf, setEffectBoxesShelf] = useState(pedalsConfig);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
+
   const context = useRef(new AudioContext());
   const volumeRef = useRef(new Volume(context.current));
-  const reverbRef = useRef(new Reverb(context.current));
+  const effectInstances = useRef({
+    Distortion: new Distortion(context.current),
+    Tremolo: new Tremolo(context.current),
+    Reverb: new Reverb(context.current),
+    Delay: new Delay(context.current),
+  });
+
   const inputRef = useRef(null);
   const outputRef = useRef(null);
-const handleKnobChange = (effectName, knobName, newValue) => {
-  const floatValue = parseFloat(newValue);
-  setEffectBoxes((prevEffectBoxes) =>
-    prevEffectBoxes.map((effect) =>
-      effect.name === effectName
-        ? {
-            ...effect,
-            knobs: {
-              ...effect.knobs,
-              [knobName]: {
-                ...effect.knobs[knobName],
-                current_value: floatValue, 
+
+  const handleKnobChange = (effectName, knobName, newValue) => {
+    const floatValue = parseFloat(newValue);
+    setEffectBoxes((prevEffectBoxes) =>
+      prevEffectBoxes.map((effect) =>
+        effect.name === effectName
+          ? {
+              ...effect,
+              knobs: {
+                ...effect.knobs,
+                [knobName]: {
+                  ...effect.knobs[knobName],
+                  current_value: floatValue,
+                },
               },
-            },
-          }
-        : effect
-    )
-  );
-};
+            }
+          : effect
+      )
+    );
+  };
+
   const getContext = () => context.current;
 
- 
   useEffect(() => {
-    // Wait for user interaction to start the audio context
     if (userInteracted) {
       setupContext();
     }
-  }, [userInteracted]); // only trigger setupContext when user interacts
-  console.log(effectsChain.current)
+  }, [userInteracted]);
+
   const handleUserInteraction = () => {
-    // This function triggers when the user clicks a button or interacts with the page
     if (context.current.state === "suspended") {
       context.current.resume();
     }
@@ -60,99 +65,180 @@ const handleKnobChange = (effectName, knobName, newValue) => {
 
   async function setupContext() {
     const ctx = getContext();
-    inputRef.current = new Input(ctx);
-    outputRef.current = new Output(ctx);
     try {
+      inputRef.current = new Input(ctx);
+      outputRef.current = new Output(ctx);
       await inputRef.current.getUserMedia();
       volumeRef.current.level = volume;
-      inputRef.current.connect(volumeRef.current).connect(outputRef.current);
+      updateAudioChain();
     } catch (err) {
       console.error("Error accessing microphone:", err);
     }
   }
 
   const updateAudioChain = () => {
-    Object.keys(effectBoxes).forEach((effect) => effect.current.disconnect());
+    if (inputRef.current) {
+      inputRef.current.disconnect();
+    }
+    if (volumeRef.current) {
+      volumeRef.current.disconnect();
+    }
+
+    Object.values(effectInstances.current).forEach(effect => {
+      if (effect) {
+        effect.disconnect();
+      }
+    });
+
+    if (!inputRef.current || !outputRef.current) {
+      return;
+    }
+
     let lastNode = inputRef.current;
-  
-    // Loop through effectBoxes and connect them to the audio chain
+
     effectBoxes.forEach((effect) => {
-      const effectInstance = effectsChain.current[effect.name];
-  
-      // Check if the effect is enabled/active
-      if (effectInstance) {
+      const effectInstance = effectInstances.current[effect.name];
+
+      if (effectInstance && effect.on) {
+        if (lastNode) {
+          lastNode.disconnect();
+        }
         lastNode.connect(effectInstance);
-        console.log(lastNode)
         lastNode = effectInstance;
       }
     });
-  
-    lastNode.connect(volumeRef.current);
-    volumeRef.current.connect(outputRef.current);
+
+    if (lastNode && volumeRef.current) {
+      lastNode.disconnect();
+      lastNode.connect(volumeRef.current);
+      volumeRef.current.connect(outputRef.current);
+    }
+
+    effectBoxes.forEach(effect => {
+      const effectInstance = effectInstances.current[effect.name];
+      if (effectInstance) {
+        Object.entries(effect.knobs).forEach(([knobName, knobValue]) => {
+          effectInstance[knobName] = knobValue.current_value;
+        });
+      }
+    });
   };
-  
+
+  useEffect(() => {
+    updateAudioChain();
+  }, [effectBoxes]);
 
   const handleVolumeSlider = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if(powerButton == true) {
+    if (powerButton) {
       volumeRef.current.level = newVolume;
     }
   };
+
   const handleOnOffButton = () => {
     if (powerButton) {
-      volumeRef.current.mute=true;
+      volumeRef.current.mute = true;
       setPowerButton(false);
     } else {
-      volumeRef.current.mute=false;
+      volumeRef.current.mute = false;
       handleUserInteraction();
       setPowerButton(true);
+      updateAudioChain();
     }
   };
 
   const handleBoxSelectClick = (effectBox) => {
     if (effectBoxes.length < 4) {
-      setEffectBoxes((prevEffectBoxes) => [...prevEffectBoxes, effectBox]);
+      setEffectBoxes((prevEffectBoxes) => [
+        ...prevEffectBoxes,
+        { ...effectBox, on: true },
+      ]);
       setEffectBoxesShelf((prevEffectBoxesShelf) =>
         prevEffectBoxesShelf.filter((box) => box !== effectBox)
       );
+
+      if (powerButton) {
+        updateAudioChain();
+      }
     }
-    effectsChain.current.effectBox.name = effectBox.name+"ref"
-    updateAudioChain();
   };
 
   const handleEffectBoxDelete = (effectBox) => {
-    delete effectsChain.current[effectBox.name];
-
-    const resetEffectBox = {
-      ...effectBox,
-      knobs: Object.fromEntries(
-        Object.entries(effectBox.knobs).map(([knobName, knobConfig]) => [
-          knobName,
-          {
-            ...knobConfig,
-            current_value: knobConfig.default_value
-          }
-        ])
-      )
-    };
-  
-    setEffectBoxes(prevEffectBoxes => 
-      prevEffectBoxes.filter(box => box.name !== effectBox.name)
+    setEffectBoxes((prevEffectBoxes) =>
+      prevEffectBoxes.filter((box) => box.name !== effectBox.name)
     );
-    setEffectBoxesShelf(prevEffectBoxesShelf => [
+    setEffectBoxesShelf((prevEffectBoxesShelf) => [
       ...prevEffectBoxesShelf,
-      resetEffectBox  
+      effectBox,
     ]);
-    
   };
 
+  const toggleEffectBoxOnOff = (effectBox) => {
+    setEffectBoxes((prevEffectBoxes) =>
+      prevEffectBoxes.map((effect) =>
+        effect.name === effectBox.name
+          ? { ...effect, on: !effect.on }
+          : effect
+      )
+    );
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const loginData = { email, password };
+
+    try {
+      const response = await fetch("http://127.0.0.1:1111", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(loginData),
+      });
+
+      const result = await response.json();
+      if (response.status === 200) {
+        setLoginMessage(`Login successful! Token: ${result.idToken}`);
+      } else {
+        setLoginMessage(`Login failed: ${result.message}`);
+      }
+    } catch (error) {
+      setLoginMessage(`Error: ${error.message}`);
+    }
+  };
   return (
-    <>
-      <div className="flex h-full">
-        <div className="flex-1">
-          <h1>Effect Boxes</h1>
-          <div className="">
+    <div className="flex flex-col h-full">
+      <div className="flex flex-col h-20 w-40/100 bg-white absolute bottom-0 left-0 border-3 items-center">
+        <form className="flex-col" onSubmit={handleSubmit}>
+          <div></div>
+          <span>Email: </span>
+          <input
+            className="border"
+            type="text"
+            name="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <span>Password:</span>
+          <input
+            className="border"
+            type="password"
+            name="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <input type="submit" />
+        </form>
+        {loginMessage && <p>{loginMessage}</p>}
+      </div>
+      <nav className="text-white font-bold text-2xl w-100/100 py-4 bg-gray-900 pl-3">
+        VIRTUAL GUITAR AMP
+      </nav>
+      <div className="flex h-100/100">
+        <div className="flex-1 border-2">
+          <div className="bg-gray-700 h-100/100">
+            <h1 className="py-3 text-white font-bold ml-3">Components</h1>
             {effectBoxesShelf.map((effectBox) => (
               <StoredEffectBox
                 key={effectBox.name}
@@ -165,52 +251,59 @@ const handleKnobChange = (effectName, knobName, newValue) => {
         </div>
 
         <div className="flex-30/100">
-          <h1>Effects Rack</h1>
-          <div className="grid bg-gray-300 border grid-cols-1 grid-rows-5 h-full">
-            <div className="bg-yellow-800 items-center">
-              <h2 className="font-bold text-lg">Amp</h2>
-              <div className="flex items-center mt-6 gap-5">
-                <button className="border rounded bg-gray-300 h-10 px-3" onClick={handleOnOffButton}>{powerButton?"On":"Off"}</button>
+          <div className="grid bg-gray-700 border-2 grid-cols-1 grid-rows-5 h-full">
+            <div className="bg-yellow-800 flex flex-col justify-center">
+              <div className="flex ml-3 justify-center flex-col">
+                <h2 className="font-bold text-lg">Amp</h2>
+                <div className="flex items-center mt-6 gap-5">
+                  <button
+                    className="border rounded bg-gray-300 h-10 px-3"
+                    onClick={handleOnOffButton}
+                  >
+                    {powerButton ? "On" : "Off"}
+                  </button>
 
-                <div className="flex gap-2">
-                  <div className="bg-white border h-10">
-                    <p>Volume</p>
-                    <input
-                      className="border"
-                      type="range"
-                      min="0"
-                      max="1"
-                      step=".01"
-                      value={volume}
-                      onChange={handleVolumeSlider}
-                    />
+                  <div className="flex gap-2">
+                    <div className="bg-white border h-10">
+                      <p>Volume</p>
+                      <input
+                        className="border"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step=".01"
+                        value={volume}
+                        onChange={handleVolumeSlider}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-            {effectBoxes.map((effectBox) => (
-              <div key={effectBox.name} className="relative">
+            {effectBoxes.map((effectBox, index) => (
+              <div
+                key={`${effectBox.name}-${effectBox.color}-${index}`}
+                className="relative"
+              >
                 <p
                   onClick={() => handleEffectBoxDelete(effectBox)}
-                  className="absolute right-5 top-0 text-4xl"
+                  className="absolute right-5 top-0 text-4xl cursor-pointer"
                 >
                   X
                 </p>
                 <EffectBox
-                
                   name={effectBox.name}
                   colour={effectBox.color}
-                  style={{ backgroundColor: effectBox.colour }}
+                  style={{ backgroundColor: effectBox.color }}
                   handleKnobChange={handleKnobChange}
                   knobs={effectBox.knobs}
-                >
-                </EffectBox>
+                />
               </div>
             ))}
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
