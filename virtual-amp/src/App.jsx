@@ -2,18 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import EffectBox from "./components/EffectBox.jsx";
 import StoredEffectBox from "./components/StoredEffectBox.jsx";
+import pedalsConfig  from "./pedalsConfig.js";
 
 function App() {
   const [effectBoxes, setEffectBoxes] = useState([]);
   const [volume, setVolume] = useState(0.5);
   const [powerButton, setPowerButton] = useState(true);
-  const [effectBoxesShelf, setEffectBoxesShelf] = useState([
-    { name: "Reverb", colour: "#72A0C1" },
-    { name: "Delay", colour: "#8C8C8C" },
-    { name: "Distortion", colour: "#FF6347" },
-    { name: "Chorus", colour: "#8A2BE2" },
-    { name: "Overdrive", colour: "#FFD700" },
-  ]);
+  const [effectBoxesShelf, setEffectBoxesShelf] = useState(
+    pedalsConfig
+  );
 
   const context = useRef(new AudioContext());
   const gainNode = useRef(context.current.createGain());
@@ -51,7 +48,10 @@ function App() {
   const handleVolumeSlider = (e) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    getGainNode().gain.value = newVolume;
+    if(powerButton==true){
+      getGainNode().gain.value = newVolume;
+    }
+
   };
 
   const handleOnOffButton = () => {
@@ -99,7 +99,7 @@ function App() {
                 key={effectBox.name}
                 onClick={() => handleBoxSelectClick(effectBox)}
                 name={effectBox.name}
-                colour={effectBox.colour}
+                color={effectBox.color}
               />
             ))}
           </div>
@@ -108,11 +108,13 @@ function App() {
         <div className="flex-30/100">
           <h1>Effects Rack</h1>
           <div className="grid grid-cols-1 grid-rows-5 h-full">
-            <div>
-              <h2>Amp</h2>
-              <button onClick={handleOnOffButton}>On/Off</button>
+            <div className="bg-yellow-800 items-center">
+            <h2>Amp</h2>
+              <div className="flex items-center mt-6 gap-5">
+              <button className ="border rounded bg-gray-300 h-10"onClick={handleOnOffButton}>On/Off</button>
+
               <div className="flex gap-2">
-                <div>
+                <div className="bg-white border h-10">
                   <p>Volume</p>
                   <input
                     className="border"
@@ -125,6 +127,9 @@ function App() {
                   />
                 </div>
               </div>
+              </div>
+
+
             </div>
             {effectBoxes.map((effectBox) => (
               <div key={effectBox.name} className="relative">
@@ -136,7 +141,7 @@ function App() {
                 </p>
                 <EffectBox
                   name={effectBox.name}
-                  colour={effectBox.colour}
+                  colour={effectBox.color}
                   style={{ backgroundColor: effectBox.colour }}
                 >
                   -
